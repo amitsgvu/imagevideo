@@ -2,6 +2,5 @@ streamlit
 easyocr
 Pillow
 gTTS
-numpy
+moviepy
 opencv-python-headless
-imageio-ffmpeg
