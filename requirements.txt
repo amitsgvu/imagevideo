@@ -4,5 +4,4 @@ Pillow
 gTTS
 numpy
 opencv-python-headless
-pydub
 moviepy
