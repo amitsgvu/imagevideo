@@ -1,53 +1,71 @@
 import streamlit as st
-import easyocr
 from PIL import Image, ImageEnhance
 import numpy as np
-import re
 from gtts import gTTS
 import io
+import cv2
+import re
+from paddleocr import PaddleOCR
 
-# Image preprocessing
+# Initialize PaddleOCR once (global)
+ocr_model = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+
+# Image preprocessing using OpenCV + Pillow
 def preprocess_image(image):
     image = image.convert("RGB")
     image = image.resize((image.width * 2, image.height * 2))  # upscale for clarity
     enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2.0)  # increase contrast
-    return image
+    image = enhancer.enhance(2.5)  # strong contrast
 
-# Clean and filter text
+    # Convert to OpenCV format
+    open_cv_image = np.array(image)
+    open_cv_image = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2BGR)
+
+    # Convert to grayscale
+    gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
+
+    # Denoise
+    gray = cv2.fastNlMeansDenoising(gray, h=30)
+
+    # Thresholding for binarization
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    return thresh
+
+# Clean OCR output
 def clean_text(results):
-    cleaned = []
-    for text in results:
-        text = text.strip().lower()
-        text = re.sub(r"[^a-zA-Z0-9\s]", "", text)  # remove special chars
-        if 2 <= len(text) <= 15 and re.search(r"[a-zA-Z0-9]", text):  # filter short/junk
-            cleaned.append(text)
-    return sorted(set(cleaned))
+    text_list = []
+    for result in results:
+        line = result[1][0].strip().lower()
+        line = re.sub(r"[^a-zA-Z0-9\s]", "", line)
+        if 2 <= len(line) <= 20:
+            text_list.append(line)
+    return sorted(set(text_list))
 
-# OCR + cleaning
-def extract_text(image):
-    reader = easyocr.Reader(['en'], gpu=False)
-    results = reader.readtext(np.array(image), detail=0)
-    return clean_text(results)
+# Extract text using PaddleOCR
+def extract_text(image_array):
+    results = ocr_model.ocr(image_array, cls=True)
+    flat_results = [item for sublist in results for item in sublist]
+    return clean_text(flat_results)
 
-# Streamlit app
-st.title("📚 AI Educational Image Reader")
+# Streamlit UI
+st.title("📚 AI Educational Image Reader (High Accuracy)")
 uploaded_file = st.file_uploader("Upload an educational image (e.g., numbers, ABCs, charts)", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
     image = Image.open(uploaded_file)
-    preprocessed_image = preprocess_image(image)
+    preprocessed_array = preprocess_image(image)
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    with st.spinner("Reading and cleaning text..."):
-        clean_results = extract_text(preprocessed_image)
+    with st.spinner("🔍 Reading and cleaning text..."):
+        clean_results = extract_text(preprocessed_array)
 
     if clean_results:
         final_text = ". ".join(clean_results).capitalize() + "."
         st.success("✅ Clean text extracted:")
         st.write(final_text)
 
-        # Generate and play audio
+        # Text-to-speech
         tts = gTTS(final_text)
         audio_fp = io.BytesIO()
         tts.write_to_fp(audio_fp)
