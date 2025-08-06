@@ -1,33 +1,54 @@
 import streamlit as st
 from PIL import Image
-import pytesseract
+import easyocr
 from gtts import gTTS
-import requests
-import io
-import base64
+from moviepy.editor import ImageClip, AudioFileClip
+import os
+import uuid
 
-st.set_page_config(page_title="Image to Video Generator", layout="centered")
-st.title("🖼️🔊➡️🎞️ Image to Video (Open Source Pipeline)")
+st.set_page_config(page_title="Image to Learning Video", layout="centered")
 
-uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
+st.title("📚 Image to Learning Video Generator")
 
-if uploaded_file:
-    # Display uploaded image
-    st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
+uploaded_file = st.file_uploader("Upload an Image of a Chapter/Page", type=["jpg", "jpeg", "png"])
 
-    # OCR Extraction
-    st.subheader("📖 Extracted Text")
+if uploaded_file is not None:
     image = Image.open(uploaded_file)
-    extracted_text = pytesseract.image_to_string(image)
-    st.write(extracted_text.strip() or "No text detected.")
+    st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    # Audio Generation
-    st.subheader("🔈 Generated Audio")
-    tts = gTTS(text=extracted_text or "No text detected", lang="en")
-    audio_buffer = io.BytesIO()
-    tts.write_to_fp(audio_buffer)
-    audio_buffer.seek(0)
-    st.audio(audio_buffer, format="audio/mp3")
+    with st.spinner("Reading text from image..."):
+        # OCR using EasyOCR
+        reader = easyocr.Reader(['en'])
+        result = reader.readtext(image, detail=0)
+        extracted_text = " ".join(result)
 
-    # Send image to video generation API
-    st.subheader("🎥 Generated Video")
+    if extracted_text.strip() == "":
+        st.error("❌ No readable text found in the image.")
+    else:
+        st.subheader("📝 Extracted Text:")
+        st.write(extracted_text)
+
+        if st.button("🎬 Generate Learning Video"):
+            with st.spinner("Generating video..."):
+                # Generate audio using gTTS
+                tts = gTTS(text=extracted_text, lang='en')
+                audio_path = f"temp_{uuid.uuid4().hex}.mp3"
+                tts.save(audio_path)
+
+                # Save image
+                image_path = f"temp_{uuid.uuid4().hex}.png"
+                image.save(image_path)
+
+                # Create video
+                clip = ImageClip(image_path).set_duration(10)
+                clip = clip.set_audio(AudioFileClip(audio_path))
+                video_path = f"output_{uuid.uuid4().hex}.mp4"
+                clip.write_videofile(video_path, fps=24)
+
+                # Display video
+                st.success("✅ Video generated successfully!")
+                st.video(video_path)
+
+                # Clean up
+                os.remove(image_path)
+                os.remove(audio_path)
