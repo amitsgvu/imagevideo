@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import uuid
 import os
-from pydub import AudioSegment
+from moviepy.editor import VideoFileClip, AudioFileClip
 
 st.set_page_config(page_title="Image to Learning Video", layout="centered")
 
@@ -32,41 +32,36 @@ if uploaded_file is not None:
         if st.button("🎬 Generate Learning Video"):
             with st.spinner("Generating video..."):
 
-                # Save audio
+                # Save audio using gTTS
                 audio_path = f"{uuid.uuid4().hex}.mp3"
                 tts = gTTS(text=extracted_text, lang='en')
                 tts.save(audio_path)
 
-                # Load audio and get duration
-                audio = AudioSegment.from_file(audio_path)
-                duration = audio.duration_seconds
-
-                # Prepare image for video
+                # Save image and prepare frame
                 frame = np.array(image)
                 height, width, _ = frame.shape
                 video_path = f"{uuid.uuid4().hex}.mp4"
 
-                # Create video writer
+                # Create a video of 10 seconds, 1 frame per second
+                fps = 1
+                duration = 10
                 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                fps = 1  # 1 frame per second
                 out = cv2.VideoWriter(video_path, fourcc, fps, (width, height))
-
-                # Repeat frame for each second of audio
-                for _ in range(int(duration)):
+                for _ in range(duration):
                     out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
                 out.release()
 
-                # Merge video and audio using moviepy only for final muxing
-                from moviepy.editor import VideoFileClip, AudioFileClip
-                final_video = VideoFileClip(video_path)
-                final_video = final_video.set_audio(AudioFileClip(audio_path))
+                # Combine image video with audio
                 final_output = f"final_{uuid.uuid4().hex}.mp4"
-                final_video.write_videofile(final_output, codec='libx264')
+                videoclip = VideoFileClip(video_path)
+                audioclip = AudioFileClip(audio_path)
+                videoclip = videoclip.set_audio(audioclip)
+                videoclip.write_videofile(final_output, codec='libx264')
 
-                # Show result
+                # Display
                 st.success("✅ Video generated successfully!")
                 st.video(final_output)
 
-                # Cleanup
+                # Clean up
                 os.remove(audio_path)
                 os.remove(video_path)
