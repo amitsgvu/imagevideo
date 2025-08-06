@@ -3,6 +3,5 @@ Pillow
 numpy
 paddleocr
 paddlepaddle
-opencv-python-headless
 gTTS
 mutagen
