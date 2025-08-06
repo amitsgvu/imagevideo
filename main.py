@@ -4,12 +4,15 @@ import easyocr
 import numpy as np
 import io
 from gtts import gTTS
+import openai
 import re
+
+# Setup your OpenAI API key (put your key in Streamlit secrets or environment)
+openai.api_key = st.secrets.get("OPENAI_API_KEY") or "YOUR_OPENAI_API_KEY"
 
 reader = easyocr.Reader(['en'], gpu=False)
 
 def preprocess_image(image):
-    # Enhance image contrast for better OCR
     image = image.convert("L")
     enhancer = ImageEnhance.Contrast(image)
     image = enhancer.enhance(2)
@@ -17,74 +20,50 @@ def preprocess_image(image):
 
 def run_ocr(image):
     results = reader.readtext(np.array(image), detail=0)
-    return results
+    return " ".join(results)
 
-def normalize_text(text):
-    # Normalize OCR text to numbers 1-10 with some known corrections
-    corrections = {
-        'one': '1', 'two': '2', 'three': '3', 'four': '4',
-        'five': '5', 'six': '6', 'seven': '7', 'eight': '8',
-        'nine': '9', 'ten': '10', 'to': '2', 'lo': '10', '0': '0'
-    }
-    text = text.lower()
-    for k, v in corrections.items():
-        text = re.sub(r'\b'+k+r'\b', v, text)
-    # Remove non-digit and non-space characters
-    text = re.sub(r'[^0-9\s]', ' ', text)
-    # Collapse multiple spaces to one
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+def clean_text_with_ai(raw_text, context="counting 1 to 10"):
+    prompt = f"""
+You are a helpful assistant that receives noisy OCR text extracted from educational images.
 
-def extract_numbers(text):
-    # Extract list of integers from text
-    nums = re.findall(r'\b\d+\b', text)
-    return [int(n) for n in nums if 1 <= int(n) <= 10]
+The text is about "{context}". Your job is to understand the content and clean it up into correct, human-readable text.
 
-def validate_counting(numbers):
-    # Validate counting sequence from 1 to 10 in order, allow missing but warn if totally wrong
-    expected = list(range(1, 11))
-    matched = [n for n in numbers if n in expected]
-    if not matched:
-        return None  # No valid numbers found
-    # Check order and coverage
-    if all(x <= y for x, y in zip(matched, matched[1:])):
-        return matched
-    return None
+Here is the OCR text:
+\"\"\"{raw_text}\"\"\"
 
-st.title("Accurate Counting 1 to 10 Extractor")
+Clean and correct the text accordingly and return only the cleaned content.
+"""
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,
+        max_tokens=100,
+    )
+    return response.choices[0].message.content.strip()
 
-uploaded_file = st.file_uploader("Upload an image with counting 1 to 10", type=["png", "jpg", "jpeg"])
+st.title("AI-powered Educational OCR Cleaner")
+
+uploaded_file = st.file_uploader("Upload your educational image", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
     image = Image.open(uploaded_file)
-    preprocessed = preprocess_image(image)
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
+    preprocessed = preprocess_image(image)
     with st.spinner("Running OCR..."):
-        raw_results = run_ocr(preprocessed)
-        raw_text = " ".join(raw_results)
+        raw_text = run_ocr(preprocessed)
         st.write("Raw OCR output:")
         st.write(raw_text)
 
-    normalized = normalize_text(raw_text)
-    st.write("Normalized text (converted to numbers):")
-    st.write(normalized)
+    with st.spinner("Cleaning OCR text with AI..."):
+        cleaned_text = clean_text_with_ai(raw_text, context="counting from 1 to 10")
+        st.success("Cleaned text:")
+        st.write(cleaned_text)
 
-    numbers = extract_numbers(normalized)
-    st.write("Extracted numbers:")
-    st.write(numbers)
-
-    validated = validate_counting(numbers)
-    if validated:
-        final_text = " ".join(str(n) for n in validated)
-        st.success("Cleaned counting sequence (1 to 10):")
-        st.write(final_text)
-
-        # Generate audio
-        tts = gTTS(final_text)
+    # Convert to speech
+    if cleaned_text:
+        tts = gTTS(cleaned_text)
         audio_fp = io.BytesIO()
         tts.write_to_fp(audio_fp)
         audio_fp.seek(0)
         st.audio(audio_fp.read(), format="audio/mp3")
-    else:
-        st.error("Could not reliably extract counting from 1 to 10. Please try a clearer image.")
