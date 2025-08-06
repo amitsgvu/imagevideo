@@ -1,5 +1,5 @@
 import streamlit as st
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import numpy as np
 import io
 import re
@@ -7,11 +7,19 @@ import pytesseract
 from gtts import gTTS
 
 def preprocess_image(image):
+    # Grayscale
     image = image.convert("L")
-    image = image.filter(ImageFilter.MedianFilter(3))
-    image = image.resize((image.width * 2, image.height * 2))
-    enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2.0)
+
+    # Resize (scale up)
+    image = image.resize((image.width * 3, image.height * 3), Image.LANCZOS)
+
+    # Sharpen image
+    image = image.filter(ImageFilter.SHARPEN)
+
+    # Adaptive thresholding (binarize)
+    image = ImageOps.autocontrast(image)
+    image = image.point(lambda x: 0 if x < 140 else 255, mode='1')
+
     return image
 
 def clean_text(text):
@@ -20,17 +28,21 @@ def clean_text(text):
     lines = [line.strip() for line in text.split('\n') if 2 <= len(line.strip()) <= 30]
     return sorted(set(lines))
 
-st.title("📚 Educational Image Reader with Tesseract OCR + Audio")
+st.title("📚 Enhanced Educational Image Reader with Tesseract OCR + Audio")
 
 uploaded_file = st.file_uploader("Upload an image (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, caption="Uploaded Image", use_column_width=True)
+
     preprocessed = preprocess_image(image)
+    st.image(preprocessed, caption="Preprocessed Image", use_column_width=True)
 
     with st.spinner("Extracting text..."):
-        text = pytesseract.image_to_string(preprocessed)
+        # Use config options for better recognition
+        config = "--oem 3 --psm 6"
+        text = pytesseract.image_to_string(preprocessed, config=config)
 
     cleaned = clean_text(text)
 
