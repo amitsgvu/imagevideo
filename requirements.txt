@@ -1,8 +1,6 @@
 streamlit
-pillow
-torch
-transformers
-gTTS
-opencv-python-headless
-pyspellchecker
+easyocr
+Pillow
 numpy
+openai
+gTTS
