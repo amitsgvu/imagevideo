@@ -6,6 +6,7 @@ import os
 import cv2
 import uuid
 import subprocess
+import numpy as np  # ✅ Fix added
 
 st.set_page_config(page_title="Image to Learning Video")
 
@@ -37,7 +38,6 @@ if uploaded_file is not None:
 
             video_path = f"video_{uuid.uuid4().hex}.mp4"
 
-            # Use ffmpeg to generate video
             subprocess.call([
                 'ffmpeg', '-y', '-loop', '1', '-i', img_path,
                 '-i', audio_path,
@@ -49,10 +49,8 @@ if uploaded_file is not None:
 
         st.video(video_path)
 
-        # Cleanup temp files
+        # Cleanup
         os.remove(audio_path)
         os.remove(img_path)
-        # You can also optionally remove the video file
-        # os.remove(video_path)
     else:
         st.warning("❌ No readable text found in the image.")
