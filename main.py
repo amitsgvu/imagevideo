@@ -7,7 +7,8 @@ import uuid
 import os
 import cv2
 import subprocess
-import imageio_ffmpeg  # ✅ fix for ffmpeg on Streamlit Cloud
+import imageio_ffmpeg
+from pydub import AudioSegment  # ✅ For accurate duration
 
 st.set_page_config(page_title="Image to Learning Video", layout="centered")
 
@@ -44,23 +45,18 @@ if uploaded_file is not None:
                 tts = gTTS(text=extracted_text, lang='en')
                 tts.save(audio_path)
 
-                # Get audio duration using ffprobe
+                # Get audio duration with pydub
                 try:
-                    result = subprocess.run(
-                        [imageio_ffmpeg.get_ffmpeg_exe(), "-i", audio_path, "-hide_banner", "-loglevel", "error",
-                         "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1"],
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-                    )
-                    duration = float(result.stdout.strip())
+                    audio = AudioSegment.from_file(audio_path)
+                    duration = audio.duration_seconds
                 except Exception as e:
-                    duration = 10  # fallback
+                    duration = 10
                     st.warning(f"Could not get duration, using 10s. Error: {e}")
 
-                # Read image with OpenCV
+                # Create video from image using OpenCV
                 frame = np.array(image)
                 height, width, _ = frame.shape
 
-                # Create video with OpenCV
                 temp_video = f"{uuid.uuid4().hex}.mp4"
                 fps = 1
                 out = cv2.VideoWriter(temp_video, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
@@ -68,7 +64,7 @@ if uploaded_file is not None:
                     out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
                 out.release()
 
-                # Combine video and audio using imageio-ffmpeg
+                # Merge audio and video
                 ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
                 subprocess.call([
                     ffmpeg_path, '-y', '-i', temp_video, '-i', audio_path,
@@ -78,7 +74,7 @@ if uploaded_file is not None:
                 st.success("✅ Video generated successfully!")
                 st.video(video_path)
 
-                # Clean up temp files
+                # Clean up
                 os.remove(img_path)
                 os.remove(audio_path)
                 os.remove(temp_video)
