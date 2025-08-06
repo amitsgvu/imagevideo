@@ -1,62 +1,48 @@
 import streamlit as st
 from PIL import Image, ImageEnhance, ImageFilter
 import numpy as np
-from gtts import gTTS
 import io
 import re
-from paddleocr import PaddleOCR
+from openocr import OpenOCR  # Python interface for the OpenOCR toolkit
+from gtts import gTTS
 
-# Initialize PaddleOCR (only once)
-ocr_model = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+# Initialize OpenOCR once
+ocr = OpenOCR(device="cpu")  # uses SVTRv2, ONNX backend via CPU
 
-# Image preprocessing using Pillow (no OpenCV)
-def preprocess_image(image):
-    image = image.convert("L")  # convert to grayscale
-    image = image.filter(ImageFilter.MedianFilter(size=3))  # reduce noise
-    image = image.resize((image.width * 2, image.height * 2))  # upscale for clarity
-    enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2.5)  # enhance contrast
-    return np.array(image)
+def preprocess(image: Image.Image) -> np.ndarray:
+    img = image.convert("L")
+    img = img.filter(ImageFilter.MedianFilter(3))
+    img = img.resize((img.width * 2, img.height * 2))
+    enhancer = ImageEnhance.Contrast(img)
+    img = enhancer.enhance(2.5)
+    return np.array(img)
 
-# Clean extracted text
-def clean_text(results):
-    text_list = []
-    for result in results:
-        line = result[1][0].strip().lower()
-        line = re.sub(r"[^a-zA-Z0-9\s]", "", line)
+def clean_text(lines):
+    texts = []
+    for ln in lines:
+        line = ln.strip().lower()
+        line = re.sub(r"[^a-z0-9\s]", "", line)
         if 2 <= len(line) <= 20:
-            text_list.append(line)
-    return sorted(set(text_list))
+            texts.append(line)
+    return sorted(set(texts))
 
-# OCR extract
-def extract_text(image_array):
-    results = ocr_model.ocr(image_array, cls=True)
-    flat_results = [item for sublist in results for item in sublist]
-    return clean_text(flat_results)
-
-# Streamlit UI
-st.title("📚 AI Educational Image Reader (High Accuracy)")
-uploaded_file = st.file_uploader("Upload an educational image (e.g., numbers, ABCs, charts)", type=["png", "jpg", "jpeg"])
-
-if uploaded_file:
-    image = Image.open(uploaded_file)
-    preprocessed_array = preprocess_image(image)
-
-    st.image(image, caption="Uploaded Image", use_column_width=True)
-
-    with st.spinner("🔍 Reading and cleaning text..."):
-        clean_results = extract_text(preprocessed_array)
-
-    if clean_results:
-        final_text = ". ".join(clean_results).capitalize() + "."
-        st.success("✅ Clean text extracted:")
-        st.write(final_text)
-
-        # Text-to-speech
-        tts = gTTS(final_text)
-        audio_fp = io.BytesIO()
-        tts.write_to_fp(audio_fp)
-        audio_fp.seek(0)
-        st.audio(audio_fp.read(), format="audio/mp3")
+st.title("📚 High‑Accuracy Educational OCR with OpenOCR (SVTRv2)")
+uploaded = st.file_uploader("Upload educational image (e.g. charts, ABCs, handwritten)", type=["png","jpg","jpeg"])
+if uploaded:
+    img = Image.open(uploaded)
+    st.image(img, caption="Uploaded image", use_column_width=True)
+    arr = preprocess(img)
+    with st.spinner("🔍 Extracting text..."):
+        lines = ocr.recognize(arr)  # returns list of text lines
+    cleaned = clean_text(lines)
+    if cleaned:
+        out = ". ".join(cleaned).capitalize() + "."
+        st.success("✅ Cleaned extracted text:")
+        st.write(out)
+        tts = gTTS(out)
+        buf = io.BytesIO()
+        tts.write_to_fp(buf)
+        buf.seek(0)
+        st.audio(buf.read(), format="audio/mp3")
     else:
         st.warning("❌ No readable educational text found.")
