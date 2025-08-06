@@ -36,41 +36,27 @@ if uploaded_file is not None:
                 img_path = f"{uuid.uuid4().hex}.jpg"
                 audio_path = f"{uuid.uuid4().hex}.mp3"
                 video_path = f"{uuid.uuid4().hex}_output.mp4"
+                temp_video = f"{uuid.uuid4().hex}.mp4"
 
                 # Save image
                 image.save(img_path)
 
-                # Generate audio from text
+                # Generate audio
                 tts = gTTS(text=extracted_text, lang='en')
                 tts.save(audio_path)
 
-                # ✅ Get audio duration using ffprobe
-                try:
-                    ffprobe_path = imageio_ffmpeg.get_ffmpeg_exe().replace("ffmpeg", "ffprobe")
-                    result = subprocess.run(
-                        [ffprobe_path, '-v', 'error', '-show_entries',
-                         'format=duration', '-of',
-                         'default=noprint_wrappers=1:nokey=1', audio_path],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT
-                    )
-                    duration = float(result.stdout.decode().strip())
-                except Exception as e:
-                    st.warning(f"⚠️ Duration error: {e}")
-                    duration = 10.0
-
-                # Create video (image loop)
+                # Set default duration (10 seconds)
+                duration = 10
                 frame = np.array(image)
                 height, width, _ = frame.shape
-
-                temp_video = f"{uuid.uuid4().hex}.mp4"
                 fps = 1
+
                 out = cv2.VideoWriter(temp_video, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
-                for _ in range(int(duration)):
+                for _ in range(duration):
                     out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
                 out.release()
 
-                # Merge image video + audio
+                # Combine audio and image video
                 ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
                 subprocess.call([
                     ffmpeg_path, '-y', '-i', temp_video, '-i', audio_path,
