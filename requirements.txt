@@ -1,8 +1,8 @@
 streamlit
 Pillow
 numpy
-opencv-python
 paddleocr
 paddlepaddle
+opencv-python-headless
 gTTS
 mutagen
