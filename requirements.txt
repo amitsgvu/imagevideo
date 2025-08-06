@@ -1,7 +1,8 @@
 streamlit
 Pillow
 numpy
-paddleocr
-paddlepaddle
+torch
+onnxruntime    # for CPU inference
+openocr    # OpenOCR Python integration
 gTTS
 mutagen
