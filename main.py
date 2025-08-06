@@ -1,30 +1,29 @@
-import os
 import streamlit as st
 from google.cloud import vision
+import json
+import os
 
-# Optional: Set path to credentials if you want to specify directly in code
-# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "path/to/key.json"
+# Load credentials from Streamlit secrets
+service_account_info = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
 
-def detect_text(image_bytes):
-    client = vision.ImageAnnotatorClient()
-    image = vision.Image(content=image_bytes)
-    response = client.text_detection(image=image)
-    texts = response.text_annotations
-    if texts:
-        return texts[0].description
-    else:
-        return "No text detected."
+# Authenticate client
+client = vision.ImageAnnotatorClient.from_service_account_info(service_account_info)
 
-st.title("Google Cloud Vision OCR with Streamlit")
+st.title("📄 Image to Text OCR using Google Vision API")
 
-uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
     image_bytes = uploaded_file.read()
     st.image(image_bytes, caption="Uploaded Image", use_column_width=True)
 
-    with st.spinner("Extracting text..."):
-        text = detect_text(image_bytes)
+    with st.spinner("🔍 Extracting text..."):
+        image = vision.Image(content=image_bytes)
+        response = client.text_detection(image=image)
+        texts = response.text_annotations
 
-    st.subheader("Extracted Text:")
-    st.text_area("", text, height=200)
+    if texts:
+        st.subheader("📝 Extracted Text:")
+        st.text_area("Detected Text", texts[0].description.strip(), height=200)
+    else:
+        st.warning("No text detected.")
