@@ -1,14 +1,12 @@
 import streamlit as st
 from PIL import Image
 import easyocr
-import re
+import numpy as np
 import openai
-import os
-from gtts import gTTS
 import io
+from gtts import gTTS
 
-# Set your OpenAI API key here or as environment variable
-openai.api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+openai.api_key = st.secrets.get("OPENAI_API_KEY")  # or your environment variable
 
 reader = easyocr.Reader(['en'], gpu=False)
 
@@ -22,20 +20,20 @@ def run_ocr(image):
 
 def clean_with_gpt(raw_text):
     prompt = (
-        "You are an AI assistant. "
-        "Clean and correct the following OCR output from an educational image, "
-        "fix numbers, words, and remove noise. Output clean, well-formatted text:\n\n"
-        f"OCR text: '''{raw_text}'''"
+        "You are an AI assistant specialized in cleaning OCR text from educational images containing counting numbers and numeric sequences. "
+        "Please correct any OCR errors, fix misread numbers or words, and output a clean numeric sequence or educational text preserving the counting correctly.\n\n"
+        f"Raw OCR text: '''{raw_text}'''\n\n"
+        "Output only the corrected, clean text preserving counting sequences."
     )
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
-        messages=[{"role":"user", "content": prompt}],
+        messages=[{"role": "user", "content": prompt}],
         max_tokens=500,
         temperature=0.1,
     )
     return response['choices'][0]['message']['content'].strip()
 
-st.title("🧠 AI-enhanced OCR with GPT text cleaning")
+st.title("🧠 OCR + AI Counting Cleaner")
 
 uploaded_file = st.file_uploader("Upload image", type=["png", "jpg", "jpeg"])
 
@@ -47,17 +45,16 @@ if uploaded_file:
 
     with st.spinner("Running OCR..."):
         raw_text = run_ocr(preprocessed)
-        st.write("Raw OCR text:")
+        st.write("Raw OCR output:")
         st.write(raw_text)
 
-    with st.spinner("Cleaning text with GPT..."):
-        cleaned_text = clean_with_gpt(raw_text)
+    with st.spinner("Cleaning with GPT..."):
+        cleaned = clean_with_gpt(raw_text)
 
     st.subheader("Cleaned Text:")
-    st.write(cleaned_text)
+    st.write(cleaned)
 
-    # Audio
-    tts = gTTS(cleaned_text)
+    tts = gTTS(cleaned)
     audio_fp = io.BytesIO()
     tts.write_to_fp(audio_fp)
     audio_fp.seek(0)
