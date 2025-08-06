@@ -3,3 +3,6 @@ pillow
 torch
 transformers
 gTTS
+opencv-python-headless
+pyspellchecker
+numpy
