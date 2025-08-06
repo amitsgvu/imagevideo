@@ -1,6 +1,8 @@
 streamlit
-easyocr
-gTTS
 Pillow
 numpy
+opencv-python
+paddleocr
+paddlepaddle
+gTTS
 mutagen
