@@ -1,6 +1,5 @@
 streamlit
 easyocr
-Pillow
+gtts
+pillow
 numpy
-openai
-gTTS
