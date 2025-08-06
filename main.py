@@ -1,27 +1,30 @@
-import openai
+import os
+import streamlit as st
+from google.cloud import vision
 
-def correct_ocr_text(raw_ocr_text, api_key):
-    openai.api_key = api_key
-    prompt = f"""
-    The following is noisy OCR output from an image showing counting from 1 to 10.
-    Please extract and return the correct counting numbers in order as a comma-separated list.
+# Optional: Set path to credentials if you want to specify directly in code
+# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "path/to/key.json"
 
-    OCR Output:
-    {raw_ocr_text}
+def detect_text(image_bytes):
+    client = vision.ImageAnnotatorClient()
+    image = vision.Image(content=image_bytes)
+    response = client.text_detection(image=image)
+    texts = response.text_annotations
+    if texts:
+        return texts[0].description
+    else:
+        return "No text detected."
 
-    Correct Counting:
-    """
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=20,
-        temperature=0,
-    )
-    return response.choices[0].text.strip()
+st.title("Google Cloud Vision OCR with Streamlit")
 
-# Example
-raw_text = "1 23. 1 8 2. 10. 42 6. numbers 110. ten ga."
-api_key = "YOUR_OPENAI_API_KEY"
+uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
-cleaned_text = correct_ocr_text(raw_text, api_key)
-print(cleaned_text)  # Expected: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+if uploaded_file:
+    image_bytes = uploaded_file.read()
+    st.image(image_bytes, caption="Uploaded Image", use_column_width=True)
+
+    with st.spinner("Extracting text..."):
+        text = detect_text(image_bytes)
+
+    st.subheader("Extracted Text:")
+    st.text_area("", text, height=200)
