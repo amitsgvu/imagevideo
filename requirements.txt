@@ -1,6 +1,5 @@
 streamlit
 pillow
-pytesseract
+torch
+transformers
 gTTS
-mutagen
-numpy
