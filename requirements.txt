@@ -1,8 +1,6 @@
 streamlit
 Pillow
 numpy
-torch
-onnxruntime    # for CPU inference
-openocr    # OpenOCR Python integration
+easyocr
 gTTS
 mutagen
