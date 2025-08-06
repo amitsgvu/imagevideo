@@ -8,7 +8,6 @@ import os
 import cv2
 import subprocess
 import imageio_ffmpeg
-from pydub import AudioSegment  # ✅ For accurate duration
 
 st.set_page_config(page_title="Image to Learning Video", layout="centered")
 
@@ -38,22 +37,29 @@ if uploaded_file is not None:
                 audio_path = f"{uuid.uuid4().hex}.mp3"
                 video_path = f"{uuid.uuid4().hex}_output.mp4"
 
-                # Save uploaded image
+                # Save image
                 image.save(img_path)
 
-                # Generate audio
+                # Generate audio from text
                 tts = gTTS(text=extracted_text, lang='en')
                 tts.save(audio_path)
 
-                # Get audio duration with pydub
+                # ✅ Get audio duration using ffprobe
                 try:
-                    audio = AudioSegment.from_file(audio_path)
-                    duration = audio.duration_seconds
+                    ffprobe_path = imageio_ffmpeg.get_ffmpeg_exe().replace("ffmpeg", "ffprobe")
+                    result = subprocess.run(
+                        [ffprobe_path, '-v', 'error', '-show_entries',
+                         'format=duration', '-of',
+                         'default=noprint_wrappers=1:nokey=1', audio_path],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT
+                    )
+                    duration = float(result.stdout.decode().strip())
                 except Exception as e:
-                    duration = 10
-                    st.warning(f"Could not get duration, using 10s. Error: {e}")
+                    st.warning(f"⚠️ Duration error: {e}")
+                    duration = 10.0
 
-                # Create video from image using OpenCV
+                # Create video (image loop)
                 frame = np.array(image)
                 height, width, _ = frame.shape
 
@@ -64,17 +70,17 @@ if uploaded_file is not None:
                     out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
                 out.release()
 
-                # Merge audio and video
+                # Merge image video + audio
                 ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
                 subprocess.call([
                     ffmpeg_path, '-y', '-i', temp_video, '-i', audio_path,
                     '-c:v', 'copy', '-c:a', 'aac', '-shortest', video_path
                 ])
 
-                st.success("✅ Video generated successfully!")
+                st.success("✅ Video generated!")
                 st.video(video_path)
 
-                # Clean up
+                # Cleanup
                 os.remove(img_path)
                 os.remove(audio_path)
                 os.remove(temp_video)
