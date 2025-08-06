@@ -2,11 +2,11 @@ import streamlit as st
 from PIL import Image
 import easyocr
 from gtts import gTTS
-import cv2
 import numpy as np
 import uuid
 import os
-from moviepy.editor import VideoFileClip, AudioFileClip
+import cv2
+import subprocess
 
 st.set_page_config(page_title="Image to Learning Video", layout="centered")
 
@@ -32,36 +32,51 @@ if uploaded_file is not None:
         if st.button("🎬 Generate Learning Video"):
             with st.spinner("Generating video..."):
 
-                # Save audio using gTTS
+                img_path = f"{uuid.uuid4().hex}.jpg"
                 audio_path = f"{uuid.uuid4().hex}.mp3"
+                video_path = f"{uuid.uuid4().hex}_output.mp4"
+
+                # Save uploaded image
+                image.save(img_path)
+
+                # Generate audio
                 tts = gTTS(text=extracted_text, lang='en')
                 tts.save(audio_path)
 
-                # Save image and prepare frame
+                # Get audio duration using ffprobe
+                try:
+                    result = subprocess.run(
+                        ["ffprobe", "-v", "error", "-show_entries",
+                         "format=duration", "-of",
+                         "default=noprint_wrappers=1:nokey=1", audio_path],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT)
+                    duration = float(result.stdout)
+                except:
+                    duration = 10  # fallback
+
+                # Read image with OpenCV
                 frame = np.array(image)
                 height, width, _ = frame.shape
-                video_path = f"{uuid.uuid4().hex}.mp4"
 
-                # Create a video of 10 seconds, 1 frame per second
+                # Create video with OpenCV
+                temp_video = f"{uuid.uuid4().hex}.mp4"
                 fps = 1
-                duration = 10
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                out = cv2.VideoWriter(video_path, fourcc, fps, (width, height))
-                for _ in range(duration):
+                out = cv2.VideoWriter(temp_video, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+                for _ in range(int(duration)):
                     out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
                 out.release()
 
-                # Combine image video with audio
-                final_output = f"final_{uuid.uuid4().hex}.mp4"
-                videoclip = VideoFileClip(video_path)
-                audioclip = AudioFileClip(audio_path)
-                videoclip = videoclip.set_audio(audioclip)
-                videoclip.write_videofile(final_output, codec='libx264')
+                # Combine audio and video using ffmpeg
+                subprocess.call([
+                    'ffmpeg', '-y', '-i', temp_video, '-i', audio_path,
+                    '-c:v', 'copy', '-c:a', 'aac', '-shortest', video_path
+                ])
 
-                # Display
                 st.success("✅ Video generated successfully!")
-                st.video(final_output)
+                st.video(video_path)
 
-                # Clean up
+                # Clean up temp files
+                os.remove(img_path)
                 os.remove(audio_path)
-                os.remove(video_path)
+                os.remove(temp_video)
