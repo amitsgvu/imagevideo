@@ -1,57 +1,55 @@
 import streamlit as st
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
-import numpy as np
-import io
+from PIL import Image
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+import torch
 import re
-import pytesseract
+import io
 from gtts import gTTS
 
+@st.cache_resource(show_spinner=False)
+def load_model():
+    processor = TrOCRProcessor.from_pretrained('microsoft/trocr-base-handwritten')
+    model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-base-handwritten')
+    return processor, model
+
 def preprocess_image(image):
-    # Grayscale
-    image = image.convert("L")
-
-    # Resize (scale up)
-    image = image.resize((image.width * 3, image.height * 3), Image.LANCZOS)
-
-    # Sharpen image
-    image = image.filter(ImageFilter.SHARPEN)
-
-    # Adaptive thresholding (binarize)
-    image = ImageOps.autocontrast(image)
-    image = image.point(lambda x: 0 if x < 140 else 255, mode='1')
-
+    if image.mode != "RGB":
+        image = image.convert("RGB")
     return image
+
+def ocr_image(image, processor, model):
+    pixel_values = processor(image, return_tensors="pt").pixel_values
+    generated_ids = model.generate(pixel_values)
+    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    return generated_text
 
 def clean_text(text):
     text = text.lower()
     text = re.sub(r"[^a-z0-9\s]", "", text)
-    lines = [line.strip() for line in text.split('\n') if 2 <= len(line.strip()) <= 30]
-    return sorted(set(lines))
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
-st.title("📚 Enhanced Educational Image Reader with Tesseract OCR + Audio")
+st.title("📝 Clean OCR with TrOCR + Audio")
 
-uploaded_file = st.file_uploader("Upload an image (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Upload image (png, jpg, jpeg)", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
     preprocessed = preprocess_image(image)
-    st.image(preprocessed, caption="Preprocessed Image", use_column_width=True)
 
-    with st.spinner("Extracting text..."):
-        # Use config options for better recognition
-        config = "--oem 3 --psm 6"
-        text = pytesseract.image_to_string(preprocessed, config=config)
+    processor, model = load_model()
+    with st.spinner("Running OCR..."):
+        raw_text = ocr_image(preprocessed, processor, model)
 
-    cleaned = clean_text(text)
+    cleaned = clean_text(raw_text)
 
     if cleaned:
-        final_text = ". ".join(cleaned).capitalize() + "."
-        st.success("Extracted Text:")
-        st.write(final_text)
+        st.subheader("Extracted Clean Text:")
+        st.write(cleaned)
 
-        tts = gTTS(final_text)
+        tts = gTTS(cleaned)
         audio_fp = io.BytesIO()
         tts.write_to_fp(audio_fp)
         audio_fp.seek(0)
