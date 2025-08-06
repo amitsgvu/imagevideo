@@ -3,3 +3,4 @@ easyocr
 gtts
 pillow
 numpy
+openai
