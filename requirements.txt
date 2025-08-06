@@ -3,7 +3,7 @@ easyocr
 gTTS
 Pillow
 numpy
-opencv-python-headless
 imageio
 imageio-ffmpeg
 mutagen
+opencv-python-headless
