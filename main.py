@@ -1,62 +1,65 @@
 import streamlit as st
+from PIL import Image
 import easyocr
 from gtts import gTTS
-from PIL import Image
 import numpy as np
-import uuid
-import os
 import imageio.v3 as iio
 from mutagen.mp3 import MP3
+import os
+import uuid
 
-st.set_page_config(page_title="📘 Image to Learning Video")
+st.title("📚 Image to Learning Video (For Kids)")
+st.write("Upload an educational image to generate a narrated video.")
 
-st.title("📚 Upload Image → Get Learning Video")
+uploaded_file = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
 
-uploaded_file = st.file_uploader("Upload an educational image (JPG/PNG)", type=["jpg", "jpeg", "png"])
-
-if uploaded_file is not None:
+if uploaded_file:
+    # Save uploaded image
     image = Image.open(uploaded_file).convert("RGB")
+    image_id = str(uuid.uuid4())
+    image_path = f"{image_id}.png"
+    image.save(image_path)
+
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    with st.spinner("🔍 Extracting text..."):
-        reader = easyocr.Reader(['en'], gpu=False)
+    with st.spinner("🔍 Reading text from image..."):
+        reader = easyocr.Reader(['en'])
         result = reader.readtext(np.array(image), detail=0)
-        extracted_text = " ".join(result).strip()
+        extracted_text = " ".join(result)
 
-    if extracted_text:
-        st.success("✅ Text extracted!")
-        st.text_area("📖 Extracted Text", extracted_text, height=100)
+    st.success("✅ Text extracted:")
+    st.write(extracted_text)
 
-        # Generate audio
-        audio_file = f"{uuid.uuid4().hex}.mp3"
-        with st.spinner("🔊 Generating audio..."):
-            tts = gTTS(text=extracted_text)
-            tts.save(audio_file)
+    if extracted_text.strip():
+        with st.spinner("🔊 Converting to speech..."):
+            tts = gTTS(text=extracted_text, lang="en")
+            audio_path = f"{image_id}.mp3"
+            tts.save(audio_path)
 
-        # Get audio duration
-        audio = MP3(audio_file)
+        st.audio(audio_path)
+
+        # Get duration of audio
+        audio = MP3(audio_path)
         duration = int(audio.info.length)
 
-        # Create video frames
-        frame = np.array(image)
-        frames = [frame] * duration  # Repeat frame to match duration
+        # Repeat image as frames
+        with st.spinner("🎞️ Creating video..."):
+            video_path = f"{image_id}.mp4"
+            frame = np.array(image)
+            frames = [frame] * duration
 
-        video_file = f"{uuid.uuid4().hex}.mp4"
-        with st.spinner("🎞 Generating video..."):
-            iio.imwrite(
-                uri=video_file,
-                format="mp4",
-                fps=1,
-                codec="libx264",
-                bitrate="800k",
-                data=frames
-            )
+            with iio.imopen(video_path, "w", plugin="pyav") as writer:
+                for frame in frames:
+                    writer.write(frame)
 
-        st.video(video_file)
+        st.success("✅ Video generated!")
 
-        # Cleanup (optional on local)
-        os.remove(audio_file)
-        os.remove(video_file)
+        with open(video_path, "rb") as f:
+            st.download_button("⬇️ Download Video", f, file_name="learning_video.mp4", mime="video/mp4")
 
+        # Cleanup
+        os.remove(image_path)
+        os.remove(audio_path)
+        os.remove(video_path)
     else:
-        st.warning("⚠️ Could not extract any text from the image.")
+        st.error("❌ No text found in the image.")
