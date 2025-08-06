@@ -1,6 +1,6 @@
 streamlit
-Pillow
-numpy
-easyocr
+pillow
+pytesseract
 gTTS
 mutagen
+numpy
