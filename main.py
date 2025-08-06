@@ -1,36 +1,49 @@
 import streamlit as st
-from PIL import Image
-import numpy as np
 import easyocr
 from gtts import gTTS
 import os
-import uuid
+import re
+from PIL import Image
+import numpy as np
 
-# Set up Streamlit UI
-st.set_page_config(page_title="AI-Based Learning App")
-st.title("📚 AI-based Learning from Educational Images")
-st.write("Upload an image (e.g., counting or ABCs) to generate audio narration.")
-
-uploaded_file = st.file_uploader("Upload an educational image", type=["jpg", "jpeg", "png"])
-
-if uploaded_file:
-    image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="Uploaded Image", use_column_width=True)
-
-    # OCR
-    st.write("🔍 Reading text from the image...")
+# OCR and Cleaning
+def extract_clean_text(image):
     reader = easyocr.Reader(['en'], gpu=False)
     result = reader.readtext(np.array(image), detail=0)
+    
+    # Clean text
+    def clean_text(text_list):
+        cleaned = []
+        for text in text_list:
+            text = text.strip().lower()
+            text = re.sub(r"[^a-zA-Z0-9\s]", "", text)
+            if len(text) >= 2 and re.search(r"[a-zA-Z0-9]", text):
+                cleaned.append(text)
+        return cleaned
 
-    full_text = " ".join(result).strip()
-    st.write("🧾 Text detected:", full_text)
+    return sorted(set(clean_text(result)))
 
-    if full_text:
+# Streamlit UI
+st.title("📚 AI Educational Image Reader")
+uploaded_file = st.file_uploader("Upload any educational image", type=["jpg", "png", "jpeg"])
+
+if uploaded_file:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image", use_column_width=True)
+
+    with st.spinner("Reading image..."):
+        words = extract_clean_text(image)
+
+    if words:
+        final_text = ". ".join(words) + "."
+        st.success("✅ Clean text extracted:")
+        st.write(final_text)
+
         # Generate audio
-        audio_path = f"/tmp/{uuid.uuid4()}.mp3"
-        tts = gTTS(text=full_text, lang='en')
+        tts = gTTS(final_text)
+        audio_path = "output.mp3"
         tts.save(audio_path)
-        st.audio(audio_path, format="audio/mp3")
-        st.success("✅ Audio generated. You can use video editors (like Canva or Kapwing) to combine it with the image.")
+
+        st.audio(audio_path)
     else:
-        st.warning("⚠️ No text was detected in the image.")
+        st.warning("No valid educational text found.")
