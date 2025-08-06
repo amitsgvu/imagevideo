@@ -3,63 +3,62 @@ from PIL import Image
 import easyocr
 from gtts import gTTS
 import numpy as np
-import imageio.v3 as iio
-from mutagen.mp3 import MP3
 import os
 import uuid
+import subprocess
+from mutagen.mp3 import MP3
 
-st.title("📚 Image to Learning Video (For Kids)")
-st.write("Upload an educational image to generate a narrated video.")
+st.title("🖼️ Image to Narrated Video (Streamlit-Compatible)")
+st.write("Upload an educational image and generate a video with spoken text.")
 
-uploaded_file = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Upload an Image", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
-    # Save uploaded image
     image = Image.open(uploaded_file).convert("RGB")
     image_id = str(uuid.uuid4())
     image_path = f"{image_id}.png"
     image.save(image_path)
-
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    with st.spinner("🔍 Reading text from image..."):
-        reader = easyocr.Reader(['en'])
+    with st.spinner("🔍 Extracting text..."):
+        reader = easyocr.Reader(['en'], gpu=False)
         result = reader.readtext(np.array(image), detail=0)
         extracted_text = " ".join(result)
 
-    st.success("✅ Text extracted:")
+    st.success("✅ Extracted Text:")
     st.write(extracted_text)
 
     if extracted_text.strip():
-        with st.spinner("🔊 Converting to speech..."):
-            tts = gTTS(text=extracted_text, lang="en")
+        with st.spinner("🔊 Generating audio..."):
             audio_path = f"{image_id}.mp3"
+            tts = gTTS(text=extracted_text, lang="en")
             tts.save(audio_path)
 
         st.audio(audio_path)
 
-        # Get duration of audio
+        # Get audio duration
         audio = MP3(audio_path)
         duration = int(audio.info.length)
 
-        # Repeat image as frames
-        with st.spinner("🎞️ Creating video..."):
+        with st.spinner("🎬 Generating video..."):
             video_path = f"{image_id}.mp4"
-            frame = np.array(image)
-            frames = [frame] * duration
-
-            with iio.imopen(video_path, "w", plugin="pyav") as writer:
-                for frame in frames:
-                    writer.write(frame)
+            subprocess.call([
+                "ffmpeg", "-y",
+                "-loop", "1", "-i", image_path,
+                "-i", audio_path,
+                "-c:v", "libx264", "-t", str(duration),
+                "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+                "-shortest", video_path
+            ])
 
         st.success("✅ Video generated!")
-
         with open(video_path, "rb") as f:
-            st.download_button("⬇️ Download Video", f, file_name="learning_video.mp4", mime="video/mp4")
+            st.download_button("⬇️ Download Video", f, file_name="educational_video.mp4", mime="video/mp4")
 
-        # Cleanup
+        # Cleanup temp files
         os.remove(image_path)
         os.remove(audio_path)
         os.remove(video_path)
+
     else:
-        st.error("❌ No text found in the image.")
+        st.error("❌ Could not detect text in image.")
