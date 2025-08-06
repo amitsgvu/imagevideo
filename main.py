@@ -54,3 +54,4 @@ if uploaded_file:
         audio_fp.seek(0)
         st.audio(audio_fp.read(), format="audio/mp3")
     else:
+        st.warning("❌ No readable educational text found.")
