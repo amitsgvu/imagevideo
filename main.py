@@ -7,6 +7,7 @@ import uuid
 import os
 import cv2
 import subprocess
+import imageio_ffmpeg  # ✅ fix for ffmpeg on Streamlit Cloud
 
 st.set_page_config(page_title="Image to Learning Video", layout="centered")
 
@@ -46,14 +47,14 @@ if uploaded_file is not None:
                 # Get audio duration using ffprobe
                 try:
                     result = subprocess.run(
-                        ["ffprobe", "-v", "error", "-show_entries",
-                         "format=duration", "-of",
-                         "default=noprint_wrappers=1:nokey=1", audio_path],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT)
-                    duration = float(result.stdout)
-                except:
+                        [imageio_ffmpeg.get_ffmpeg_exe(), "-i", audio_path, "-hide_banner", "-loglevel", "error",
+                         "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1"],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                    )
+                    duration = float(result.stdout.strip())
+                except Exception as e:
                     duration = 10  # fallback
+                    st.warning(f"Could not get duration, using 10s. Error: {e}")
 
                 # Read image with OpenCV
                 frame = np.array(image)
@@ -67,9 +68,10 @@ if uploaded_file is not None:
                     out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
                 out.release()
 
-                # Combine audio and video using ffmpeg
+                # Combine video and audio using imageio-ffmpeg
+                ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
                 subprocess.call([
-                    'ffmpeg', '-y', '-i', temp_video, '-i', audio_path,
+                    ffmpeg_path, '-y', '-i', temp_video, '-i', audio_path,
                     '-c:v', 'copy', '-c:a', 'aac', '-shortest', video_path
                 ])
 
