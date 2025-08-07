@@ -1,4 +1,4 @@
 streamlit
+opencv-python-headless
 pytesseract
-opencv-python
 Pillow
