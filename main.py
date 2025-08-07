@@ -1,54 +1,31 @@
 import streamlit as st
 from PIL import Image
-import pytesseract
-import numpy as np
-import cv2
+import easyocr
+import tempfile
+import os
 
-st.set_page_config(page_title="Image to Text", layout="centered")
-st.title("📄 OCR Image Text Extractor")
+st.title("🧠 Image to Text OCR App (EasyOCR)")
 
-def preprocess_image(pil_image):
-    # Convert to OpenCV format
-    img = np.array(pil_image.convert('RGB'))
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-
-    # Convert to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # Resize to double the size (helps OCR accuracy)
-    scale_percent = 200
-    width = int(gray.shape[1] * scale_percent / 100)
-    height = int(gray.shape[0] * scale_percent / 100)
-    dim = (width, height)
-    gray = cv2.resize(gray, dim, interpolation=cv2.INTER_LINEAR)
-
-    # Apply Gaussian blur to reduce noise
-    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-
-    # Apply adaptive thresholding
-    thresh = cv2.adaptiveThreshold(
-        blurred, 255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY,
-        11, 2
-    )
-
-    return thresh
-
-uploaded_file = st.file_uploader("Upload an Image", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
+    # Display uploaded image
     image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Image", use_column_width=True)
+    st.image(image, caption='Uploaded Image', use_column_width=True)
 
-    if st.button("Extract Text"):
-        st.subheader("🧪 Extracting text...")
-        processed_image = preprocess_image(image)
+    # Save the image to a temp file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_file:
+        image.save(temp_file.name)
+        temp_image_path = temp_file.name
 
-        # OCR configuration
-        config = "--oem 3 --psm 6"
-        text = pytesseract.image_to_string(processed_image, config=config)
+    st.write("🔍 Extracting text...")
 
-        cleaned_text = "\n".join([line.strip() for line in text.splitlines() if line.strip()])
-        st.subheader("📋 Extracted Text")
-        st.text(cleaned_text)
+    # Initialize EasyOCR reader
+    reader = easyocr.Reader(['en'])  # You can add more languages if needed
+
+    # Perform OCR
+    results = reader.readtext(temp_image_path, detail=0)  # detail=0 returns just text
+
+    # Show results
+    extracted_text = "\n".join(results)
+    st.text_area_
