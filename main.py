@@ -2,27 +2,30 @@ import streamlit as st
 from PIL import Image
 import pytesseract
 
-# Optional: Only if you're running locally and tesseract isn't on PATH
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# Tesseract config to get better accuracy
+CUSTOM_CONFIG = r'--oem 3 --psm 6'  # Assume uniform block of text
 
-def extract_text(image):
-    # Convert to grayscale to improve OCR
-    gray = image.convert("L")
-    
-    # Use proper OCR configuration
-    config = "--oem 3 --psm 6"  # Assume a single block of text
-    text = pytesseract.image_to_string(gray, config=config)
-    return text
+st.set_page_config(page_title="OCR App", layout="centered")
+st.title("📄 Extract Text from Image")
 
-st.title("📄 OCR App: Clean Text from Image")
-
-uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
     if st.button("Extract Text"):
-        extracted_text = extract_text(image)
-        st.subheader("📝 Extracted Text:")
-        st.text(extracted_text)
+        # Convert to grayscale
+        gray = image.convert("L")
+
+        # Run OCR with good config
+        extracted_text = pytesseract.image_to_string(gray, config=CUSTOM_CONFIG)
+
+        # Clean up result: remove empty lines & noise
+        cleaned_text = "\n".join([
+            line for line in extracted_text.splitlines()
+            if line.strip() and not line.strip().isdigit()
+        ])
+
+        st.subheader("📝 Extracted Text")
+        st.text(cleaned_text)
