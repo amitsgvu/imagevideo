@@ -4,8 +4,8 @@ from PIL import Image
 import io
 import os
 
-# Load credentials from environment
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/mount/secrets/gcp_key.json"
+# Load credentials securely from Streamlit secrets
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = st.secrets["GOOGLE_APPLICATION_CREDENTIALS"]
 
 st.title("🔍 Google Vision OCR")
 
@@ -15,17 +15,17 @@ if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, caption="🖼️ Uploaded Image", use_column_width=True)
 
-    # Convert to bytes
+    # Convert image to bytes
     img_byte_arr = io.BytesIO()
     image.save(img_byte_arr, format="PNG")
     content = img_byte_arr.getvalue()
 
+    # Google Vision client
     client = vision.ImageAnnotatorClient()
     image = vision.Image(content=content)
-
     response = client.text_detection(image=image)
-    texts = response.text_annotations
 
+    texts = response.text_annotations
     if texts:
         extracted_text = texts[0].description
         st.text_area("📋 Extracted Text", extracted_text, height=300)
