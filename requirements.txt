@@ -1,4 +1,3 @@
 streamlit
-easyocr
-opencv-python-headless
+google-cloud-vision
 Pillow
