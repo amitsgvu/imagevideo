@@ -1,16 +1,11 @@
 import streamlit as st
 from PIL import Image
 import pytesseract
-import cv2
-import numpy as np
-import tempfile
 
 def extract_text_from_image(image):
-    # Convert PIL to OpenCV
-    img = np.array(image)
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
-    text = pytesseract.image_to_string(thresh, config='--oem 3 --psm 6')
+    # Convert image to grayscale (optional for cleaner results)
+    gray_image = image.convert("L")  # "L" mode = grayscale
+    text = pytesseract.image_to_string(gray_image, config='--psm 6')
     return text
 
 st.title("🧠 OCR App")
