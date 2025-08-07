@@ -1,45 +1,27 @@
 import streamlit as st
-from google.cloud import vision
-from PIL import Image, ImageEnhance, ImageFilter
-import io
-import os
+from PIL import Image
+import pytesseract
+import cv2
+import numpy as np
+import tempfile
 
-# Load credentials from environment (assumes set already)
-client = vision.ImageAnnotatorClient()
+def extract_text_from_image(image):
+    # Convert PIL to OpenCV
+    img = np.array(image)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
+    text = pytesseract.image_to_string(thresh, config='--oem 3 --psm 6')
+    return text
 
-def preprocess_image(image_bytes):
-    image = Image.open(io.BytesIO(image_bytes)).convert("L")
-    image = image.filter(ImageFilter.MedianFilter())  # Denoise
-    enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2)  # Boost contrast
-    return image
+st.title("🧠 OCR App")
 
-st.title("📷 Image to Text - Google Vision OCR")
+uploaded_file = st.file_uploader("Upload an Image", type=["png", "jpg", "jpeg"])
 
-uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
-if uploaded_file:
-    image_bytes = uploaded_file.read()
-    processed_image = preprocess_image(image_bytes)
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    # Convert PIL image back to bytes
-    buf = io.BytesIO()
-    processed_image.save(buf, format="PNG")
-    image_bytes = buf.getvalue()
-
-    st.image(image_bytes, caption="🖼️ Processed Image", use_column_width=True)
-
-    image = vision.Image(content=image_bytes)
-    image_context = vision.ImageContext(language_hints=["en"])
-    response = client.text_detection(image=image, image_context=image_context)
-
-    texts = response.text_annotations
-
-    if texts:
-        st.subheader("📝 Extracted Text")
-        st.text_area("Detected Text", texts[0].description.strip(), height=250)
-
-        st.subheader("🔍 OCR Debug (each block)")
-        for i, text in enumerate(texts[1:], 1):
-            st.write(f"{i}. {text.description}")
-    else:
-        st.warning("⚠️ No text detected. Try a clearer image.")
+    if st.button("Extract Text"):
+        result = extract_text_from_image(image)
+        st.subheader("Extracted Text:")
+        st.text(result)
