@@ -2,40 +2,43 @@ import streamlit as st
 from PIL import Image, ImageEnhance, ImageOps
 import pytesseract
 
-st.set_page_config(page_title="OCR App", layout="centered")
-st.title("🧠 Clean OCR from Image")
+st.set_page_config(page_title="Image OCR", layout="centered")
+st.title("📄 Image to Text OCR")
 
 def preprocess_image(image):
     # Convert to grayscale
     gray = image.convert("L")
     
-    # Increase contrast
+    # Enhance contrast
     contrast = ImageEnhance.Contrast(gray).enhance(2.0)
     
-    # Increase sharpness
+    # Sharpen image
     sharp = ImageEnhance.Sharpness(contrast).enhance(2.0)
     
-    # Resize (Tesseract works better on large images)
+    # Resize to improve OCR accuracy
     resized = sharp.resize((sharp.width * 2, sharp.height * 2))
     
-    # Apply autocontrast
+    # Auto-adjust contrast
     final = ImageOps.autocontrast(resized)
     
     return final
 
-uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
 
-if uploaded_file:
+if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
     if st.button("Extract Text"):
-        processed = preprocess_image(image)
+        # Preprocess image
+        processed_image = preprocess_image(image)
+        
+        # OCR config for accuracy
         config = "--oem 3 --psm 6"
-        text = pytesseract.image_to_string(processed, config=config)
+        extracted_text = pytesseract.image_to_string(processed_image, config=config)
 
-        # Clean up
-        clean_text = "\n".join([line.strip() for line in text.splitlines() if line.strip()])
+        # Clean up output
+        cleaned_text = "\n".join([line.strip() for line in extracted_text.splitlines() if line.strip()])
 
-        st.subheader("📋 Extracted Text")
-        st.text(clean_text)
+        st.subheader("📝 Extracted Text")
+        st.text(cleaned_text)
