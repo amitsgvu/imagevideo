@@ -1,2 +1,4 @@
 streamlit
-requests
+easyocr
+pillow
+numpy
