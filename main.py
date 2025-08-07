@@ -1,42 +1,35 @@
 import streamlit as st
-import pytesseract
-from PIL import Image
-import numpy as np
-import cv2
+import requests
 
-st.set_page_config(page_title="Image to Text OCR", layout="centered")
-st.title("📄 Extract Text from Image using Tesseract + OpenCV")
+def ocr_space_file(file, api_key, language='eng'):
+    url_api = 'https://api.ocr.space/parse/image'
+    with open(file, 'rb') as f:
+        response = requests.post(
+            url_api,
+            files={'filename': f},
+            data={
+                'apikey': api_key,
+                'language': language,
+                'OCREngine': 2
+            },
+        )
+    result = response.json()
+    return result.get("ParsedResults", [{}])[0].get("ParsedText", "No text found.")
+
+st.title("🧠 OCR with OCR.Space API")
 
 uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
 
-def preprocess_image(image: Image.Image):
-    img = np.array(image.convert("RGB"))
-
-    # Convert to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-
-    # Apply Gaussian blur
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-
-    # Apply thresholding
-    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-    return thresh
-
 if uploaded_file:
-    image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Image", use_column_width=True)
+    st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
 
-    processed = preprocess_image(image)
-    st.image(processed, caption="Preprocessed Image", channels="GRAY", use_column_width=True)
+    with open("temp_image.png", "wb") as f:
+        f.write(uploaded_file.read())
 
-    st.markdown("### 🔍 Extracting text...")
-    config = r'--oem 3 --psm 6'
-    extracted_text = pytesseract.image_to_string(processed, config=config)
+    api_key = st.secrets["OCR_SPACE_API_KEY"]
 
-    st.text_area("📋 Extracted Text", extracted_text.strip(), height=300)
+    with st.spinner("Extracting text..."):
+        extracted_text = ocr_space_file("temp_image.png", api_key)
+        st.success("Text extracted!")
 
-    if st.button("Copy to Clipboard"):
-        st.write("Use Ctrl+C to copy text above.")
-else:
-    st.info("👆 Upload an image to begin.")
+    st.text_area("📋 Extracted Text", extracted_text, height=300)
